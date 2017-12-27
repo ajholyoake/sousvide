@@ -1,20 +1,15 @@
 from multiprocessing import Process, Queue, Event
 from relay import Relay
-from data import TemperatureArray
+from data import TemperatureArray, get_logger
 import time
 import datetime
 import logging
 
-def get_logger(name):
-    FORMAT = '%(asctime)-15s %(message)s'
-    logging.basicConfig(format=FORMAT)
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
-    return logger
-
 def read_temperatures(ta, q, ev, timeout):
     while True:
-        q.put(ta.get_temperatures())
+        for t in ta.get_temperatures():
+            if isinstance(t, dict):
+                q.put(t)
         while not ev.wait(timeout=timeout):
             break
         if ev.is_set():
@@ -31,13 +26,16 @@ class DeliciousFoods(object):
                 target=read_temperatures, args=(self.temperature_array,
                     self.temperature_queue, 
                     self.stop_event,
-                    20))
+                    1))
         self.history = []
         self.max_no_reading = 10
         self.target = target
         self.no_reading_count = 0
         self.logger = get_logger(self.__class__.__name__)
         self.logger.info('Starting log for DeliciousFoods')
+        self.current_temp = {}
+        self.pin = datetime.timedelta(seconds=30)
+
 
     def start_temperature_thread(self):
         self.logger.info('Starting temperature thread')
@@ -49,37 +47,48 @@ class DeliciousFoods(object):
         self.temperature_process.join()
 
     def current_temperature(self):
-        if self.temperature_queue.empty():
-            self.no_reading_count += 1
-            if self.no_reading_count > self.max_no_reading:
-                raise ValueError('Too many non-readings')
-            if self.history:
-                return self.history[-1]
-            else:
-                return None
-        else:
-            temp = None
-            while not self.temperature_queue.empty():
-                temp = self.temperature_queue.get()
+        now = datetime.datetime.now()
+        while not self.temperature_queue.empty():
+            temp = self.temperature_queue.get()
+            self.current_temp.update(temp)
             if temp != {}:
                 self.no_reading_count = 0
             else:
                 self.no_reading_count += 1
+
+
+        self.current_temp = {k:v for k,v in self.current_temp.iteritems() if now - v.time < self.pin}
+        self.logger.info(self.current_temp)
+        temp = self.current_temp
+        if self.no_reading_count > self.max_no_reading:
+            self.logger.info('Too many invalid reading counts')
+            return None
+            #raise ValueError('Too many non-readings')
+        elif not temp:
+            self.logger.info('No valid temp sensor readings')
+            return None
+        else:
                 
+            #Prune out old ones
             self.history.append(temp)
-            self.logger.info(temp)
+            self.logger.info({k:v for k,v in temp.iteritems()})
             return temp
 
     def aggregate_temperature(self):
         curr_temp = self.current_temperature()
         if not curr_temp:
             return
-        return max(curr_temp.itervalues())
+
+        return max(v.temp for v in curr_temp.itervalues())
 
 
     def control_temperature(self):
         temp = self.aggregate_temperature()
         if temp is None:
+            self.logger.info('Invalid temp')
+            if self.relay.state == Relay.ON:
+                self.logger.info('Turning relay off')
+            self.relay.turn_off()
             return
         if temp > self.target - 1:
             if self.relay.state == Relay.ON:
