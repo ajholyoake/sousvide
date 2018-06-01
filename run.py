@@ -4,6 +4,7 @@ from data import TemperatureArray, get_logger
 import time
 import datetime
 import logging
+import argparse
 
 def read_temperatures(ta, q, ev, timeout):
     while True:
@@ -17,11 +18,11 @@ def read_temperatures(ta, q, ev, timeout):
 
 
 class DeliciousFoods(object):
-    def __init__(self, target=68, relay_pin = None):
+    def __init__(self, target=68, relay_pin = None, temperature_pin=20):
         self.stop_event = Event()
         self.temperature_queue = Queue()
         self.relay = Relay(relay_pin) 
-        self.temperature_array = TemperatureArray()
+        self.temperature_array = TemperatureArray(pin=temperature_pin)
         self.temperature_process = Process(name='temperature',
                 target=read_temperatures, args=(self.temperature_array,
                     self.temperature_queue, 
@@ -115,7 +116,30 @@ class DeliciousFoods(object):
                 pickle.dump(self.history, f)
 
         
+def breakout_to_pi(breakout_pin):
+    """
+    http://heinrichhartmann.com/blog/2014/11/22/Raspberry-Pi-SunFounder-GPIO-Layout.html
+    """
+    pin_map = {0:17,
+            1:18,
+            2:27,
+            3:22,
+            4:23,
+            5:24,
+            6:25,
+            7:4}
 
 if __name__=='__main__':
-    t = DeliciousFoods(target=68)
+    parser = argparse.ArgumentParser(description='Delicious foods, but later')
+    parser.add_argument('-target', default=57)
+    parser.add_argument('-relaypin', default=4)
+    parser.add_argument('-temppin', default=7)
+
+    args=parser.parse_args()
+
+
+
+    
+    t = DeliciousFoods(target=args.target, relay_pin=breakout_to_pi(args.relaypin),
+            temperature_pin=breakout_to_pi(args.temppin))
     t.run()

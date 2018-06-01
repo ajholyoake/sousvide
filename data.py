@@ -98,10 +98,11 @@ class TemperatureArray(object):
                         '28-0214630a84ff':'2',
                         '28-02146329feff':'3'}
 
-    def __init__(self, name_dir=None):
+    def __init__(self, name_dir=None, pin=20):
         if name_dir is None:
             name_dir = TemperatureArray.DEFAULT_NAME_MAP
         self.name_dir = name_dir
+        self.pin = pin
         self.logger = get_logger(self.__class__.__name__)
         self.sensors = {}
         self.connect_sensors()
@@ -112,7 +113,7 @@ class TemperatureArray(object):
             name = self.name_dir.get(i,i)
             if name not in self.sensors:
                 self.logger.info('Found sensor {}, {}'.format(name, i))
-                self.sensors[name] = TemperatureProbe(i,name=name)
+                self.sensors[name] = TemperatureProbe(i,name=name, pin=self.pin)
 
     def get_temperatures(self):
         self.connect_sensors()
