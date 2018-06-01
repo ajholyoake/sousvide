@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from multiprocessing import Process, Queue, Event
 from relay import Relay
 from data import TemperatureArray, get_logger
@@ -131,9 +132,9 @@ def breakout_to_pi(breakout_pin):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Delicious foods, but later')
-    parser.add_argument('-target', default=57)
-    parser.add_argument('-relaypin', default=4)
-    parser.add_argument('-temppin', default=7)
+    parser.add_argument('-target', default=57, type=float)
+    parser.add_argument('-relaypin', default=4, type=int)
+    parser.add_argument('-temppin', default=7, type=int)
 
     args=parser.parse_args()
 
